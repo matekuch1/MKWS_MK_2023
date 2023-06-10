@@ -1,0 +1,180 @@
+#===========================================================================#
+#======================= MKWS - MATEUSZ KUCHARSKI ==========================#
+#===========================================================================#
+
+import cantera as ct
+import numpy as np
+import matplotlib.pyplot as plt
+
+def combust(T: float, P: float, species_dict: dict, reactor: str, dt: float = 2e-2, till_ignition: bool = True):
+    gas = ct.Solution('gri30.yaml')
+
+    # Convert percentages to molar fractions
+    molar_fractions = {species: percentage / 100 for species, percentage in species_dict.items()}
+
+    gas.TPX = T, P, molar_fractions
+
+    # Selecting reactor
+    if reactor == 'constant temperature':
+        r = ct.IdealGasReactor(gas)
+    
+    elif reactor == 'constant pressure':
+        r = ct.IdealGasConstPressureReactor(gas)
+    
+    else:
+        raise TypeError(f"Improper reactor type '{reactor}'")
+
+    # Making reactor network
+    sim = ct.ReactorNet([r])
+
+    # Making a solution array  object
+    states = ct.SolutionArray(gas, extra=['time_in_ms', 'time_in_sec'])
+
+    # Simulates for  2 sec = dt*n_steps
+    simulation_time = 2
+    
+    # time step is dt
+    n_steps = int(simulation_time/dt)
+    ignition_delay = 0.5
+    
+    # A flag so that auto-ignition temperature is computed only 
+    # once, the first time temperatue spikes by 400 [K]
+    ignited = False
+    
+    # Set the initial pressure
+    initial_pressure = P
+
+    # Time loop
+    time = 0.0
+    for n in range(n_steps):
+        time += dt
+        sim.advance(time)
+
+        states.append(r.thermo.state, time_in_sec=time, time_in_ms=time * 1e3)
+
+        if ignited == False:
+            if states.T[n] >= (T+373):
+                ignition_delay = time
+                ignited = True
+                if till_ignition == True:
+                    break
+
+    print(round(time, 5), round(gas.P / 1e6, 3), round(gas.T - 273, 3))
+    return gas, states, ignition_delay
+
+
+#===========================================================================#
+#============================= HYDROGEN ====================================#
+#===========================================================================#
+
+# PART 1.1
+fig1, axs = plt.subplots(2,1, figsize=(20, 20), layout='tight')
+
+#HYDROGEN 10%
+igd_lst = []
+P = (np.linspace(5,15,3))
+for t in P:
+    _, states, igd = combust(1000, t*ct.one_atm, {'H2':10, 'O2':18, 'N2': 72}, 'constant temperature', dt= 2e-5)
+    axs[0].plot(states.time_in_ms, states.T, '-', label= f'{t: .3} atm, H2-10% = {igd*1000: .5} ms')
+    igd_lst.append(igd)
+
+#HYDROGEN 30%
+igd_lst = []
+P = (np.linspace(5,15,3))
+for t in P:
+    _, states, igd = combust(1000, t*ct.one_atm, {'H2':30, 'O2':14, 'N2': 56}, 'constant temperature', dt= 2e-5)
+    axs[0].plot(states.time_in_ms, states.T, '-', label= f'{t: .3} atm, H2-30% = {igd*1000: .5} ms')
+    igd_lst.append(igd)
+
+#HYDROGEN 70%
+igd_lst = []
+P = (np.linspace(5,15,3))
+for t in P:
+    _, states, igd = combust(1000, t*ct.one_atm, {'H2':70, 'O2':6, 'N2': 24}, 'constant temperature', dt= 2e-5)
+    axs[0].plot(states.time_in_ms, states.T, '-', label= f'{t: .3} atm, H2-70% = {igd*1000: .5} ms')
+    igd_lst.append(igd)
+
+axs[0].set_xlabel('Time [ms]$\longrightarrow$')
+axs[0].set_ylabel("Flame Temperature [K]$\longrightarrow$")
+axs[0].grid(linestyle='-')
+axs[0].legend()
+
+fig1.suptitle(f"Auto-ignition of H2 at 1000K and pressure variation")
+
+#===========================================================================#
+#============================= METHANE =====================================#
+#===========================================================================#
+
+# PART 1
+fig2, axs = plt.subplots(2,1, figsize=(20, 20), layout='tight')
+
+#METHANE 10%
+igd_lst = []
+P = (np.linspace(5,15,3))
+for t in P:
+    _, states, igd = combust(1000, t*ct.one_atm, {'CH4':10, 'O2':18, 'N2': 72}, 'constant temperature', dt= 2e-4)
+    axs[0].plot(states.time_in_ms, states.T, '-', label= f'{t: .3} atm, CH4-10% = {igd*1000: .5} ms')
+    igd_lst.append(igd)
+
+#METHANE 30%
+igd_lst = []
+P = (np.linspace(5,15,3))
+for t in P:
+    _, states, igd = combust(1000, t*ct.one_atm, {'CH4':30, 'O2':14, 'N2': 56}, 'constant temperature', dt= 2e-4)
+    axs[0].plot(states.time_in_ms, states.T, '-', label= f'{t: .3} atm, CH4-30% = {igd*1000: .5} ms')
+    igd_lst.append(igd)
+
+#METHANE 70%
+igd_lst = []
+P = (np.linspace(5,15,3))
+for t in P:
+    _, states, igd = combust(1000, t*ct.one_atm, {'CH4':70, 'O2':6, 'N2': 24}, 'constant temperature', dt= 2e-4)
+    axs[0].plot(states.time_in_ms, states.T, '-', label= f'{t: .3} atm, CH4-70% = {igd*1000: .5} ms')
+    igd_lst.append(igd)
+
+axs[0].set_xlabel('Time [ms]$\longrightarrow$')
+axs[0].set_ylabel("Flame Temperature [K]$\longrightarrow$")
+axs[0].grid(linestyle='-')
+axs[0].legend()
+
+fig2.suptitle(f"Auto-ignition of CH4 at 1000K and pressure variation")
+
+#===========================================================================#
+#============================= ETHANE ======================================#
+#===========================================================================#
+
+# PART 1
+fig3, axs = plt.subplots(2,1, figsize=(20, 20), layout='tight')
+
+#AMMONIA 10%
+igd_lst = []
+P = (np.linspace(5,15,3))
+for t in P:
+    _, states, igd = combust(1000, t*ct.one_atm, {'C2H6':10, 'O2':18, 'N2': 72}, 'constant temperature', dt= 2e-4)
+    axs[0].plot(states.time_in_ms, states.T, '-', label= f'{t: .3} atm, C2H6-10% = {igd*1000: .5} ms')
+    igd_lst.append(igd)
+
+#AMMONIA 30%
+igd_lst = []
+P = (np.linspace(5,15,3))
+for t in P:
+    _, states, igd = combust(1000, t*ct.one_atm, {'C2H6':30, 'O2':14, 'N2': 56}, 'constant temperature', dt= 2e-4)
+    axs[0].plot(states.time_in_ms, states.T, '-', label= f'{t: .3} atm, C2H6-30% = {igd*1000: .5} ms')
+    igd_lst.append(igd)
+
+#AMMONIA 70%
+igd_lst = []
+P = (np.linspace(5,10,3))
+for t in P:
+    _, states, igd = combust(1000, t*ct.one_atm, {'C2H6':70, 'O2':6, 'N2': 24}, 'constant temperature', dt= 2e-4)
+    axs[0].plot(states.time_in_ms, states.T, '-', label= f'{t: .3} atm, C2H6-70% = {igd*1000: .5} ms')
+    igd_lst.append(igd)
+
+axs[0].set_xlabel('Time [ms]$\longrightarrow$')
+axs[0].set_ylabel("Flame Temperature [K]$\longrightarrow$")
+axs[0].grid(linestyle='-')
+axs[0].legend()
+
+fig3.suptitle(f"Auto-ignition of C2H6 at 1000K and pressure variation")
+
+plt.show()
